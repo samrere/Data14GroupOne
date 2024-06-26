@@ -133,7 +133,7 @@ def main():
     user_features_1.orderBy('user_id').show(5)
     print(f'row count: {user_features_1.count()}')
     # save aggregated result as one part
-    user_features_1.write.mode("overwrite").parquet("s3://derek-transformed-data/user_features_1/")
+    user_features_1.write.mode("overwrite").parquet("s3://derek-transformed-data/features/user_features_1/")
         
     # order_products_prior = spark.read.parquet('s3://derek-transformed-data/order_products_prior/') # read as parquet
     
@@ -144,7 +144,7 @@ def main():
                                                             )
     user_features_2.orderBy('user_id').show(5)
     print(f'row count: {user_features_2.count()}')
-    user_features_2.write.mode("overwrite").parquet("s3://derek-transformed-data/user_features_2/")
+    user_features_2.write.mode("overwrite").parquet("s3://derek-transformed-data/features/user_features_2/")
         
     up_features = order_products_prior.groupBy('user_id', 'product_id').agg(count('order_id').alias('total_orders'),
                                                                         min('order_number').alias('min_order_number'),
@@ -153,7 +153,7 @@ def main():
                                                                        )
     up_features.orderBy('user_id', 'product_id').show(5)
     print(f'row count: {up_features.count()}')
-    up_features.write.mode("overwrite").parquet("s3://derek-transformed-data/up_features/")
+    up_features.write.mode("overwrite").parquet("s3://derek-transformed-data/features/up_features/")
             
     prod_seq = order_products_prior.withColumn('product_seq_time', 
                                            row_number().over(Window\
@@ -169,7 +169,7 @@ def main():
                                                     )
     prd_features.orderBy('product_id').show(5)
     print(f'row count: {prd_features.count()}')
-    prd_features.write.mode("overwrite").parquet("s3://derek-transformed-data/prd_features/")        
+    prd_features.write.mode("overwrite").parquet("s3://derek-transformed-data/features/prd_features/")        
             
     # END TODO ---------------------------------------------------
     
