@@ -1,0 +1,440 @@
+service: ${env:APPLICATION}
+frameworkVersion: '4'
+
+useDotenv: true
+variablesResolutionMode: 20210326
+
+plugins:
+  - serverless-python-requirements
+  - serverless-dotenv-plugin
+  - serverless-prune-plugin
+  - serverless-glue
+custom:
+  pythonRequirements:
+    dockerizePip: false
+  # prune:
+  #   automatic: true
+  #   number: 3
+  dotenv:
+    include:
+      - TZ_LOCAL
+
+provider:
+  name: aws
+  runtime: ${env:PYTHON_VERSION}
+  memorySize: 256
+  timeout: 300
+  deploymentBucket:
+    name: ${env:DEPLOYMENT_BUCKET}
+    maxPreviousDeploymentArtifacts: 3
+  region: ${env:REGION}
+  versionFunctions: true
+  profile: default
+
+# you can add statements to the Lambda function's IAM Role here
+  iamRoleStatements:
+    - Effect: Allow
+      Action:
+        - s3:*
+      Resource: "*"
+    - Effect: Allow
+      Action:
+        - glue:*
+      Resource: "*"
+    - Effect: Allow
+      Action:
+        - logs:*
+      Resource: "*"
+    
+
+# you can define service wide environment variables here
+  environment:
+
+# you can add packaging information here
+package:
+  exclude:
+    - __cache__/**
+    - __pycache__/**
+    - node_modules/**
+    - 'package.json'
+    - 'package-lock.json'
+
+functions:
+  dataPipelineAisles:
+    handler: data_pipeline.handler_aisles
+    name: data_pipeline_aisles
+    description: "ETL of InstaCart"
+    events:
+      - s3:
+          bucket: ${env:EVENT_BUCKET}
+          event: s3:ObjectCreated:*
+          rules:
+            - prefix: data_csv/aisles/
+
+  dataPipelineDepartments:
+    handler: data_pipeline.handler_departments
+    name: data_pipeline_departments
+    description: "ETL of InstaCart"
+    events:
+      - s3:
+          bucket: ${env:EVENT_BUCKET}
+          event: s3:ObjectCreated:*
+          rules:
+            - prefix: data_csv/departments/
+
+  dataPipelineProducts:
+    handler: data_pipeline.handler_products
+    name: data_pipeline_products
+    description: "ETL of InstaCart"
+    events:
+      - s3:
+          bucket: ${env:EVENT_BUCKET}
+          event: s3:ObjectCreated:*
+          rules:
+            - prefix: data_csv/products/
+  
+  dataPipelineOrders:
+    handler: data_pipeline.handler_orders
+    name: data_pipeline_orders
+    description: "ETL of InstaCart"
+    events:
+      - s3:
+          bucket: ${env:EVENT_BUCKET}
+          event: s3:ObjectCreated:*
+          rules:
+            - prefix: data_csv/orders/
+
+  dataPipelineOrderProducts:
+    handler: data_pipeline.handler_orderproducts
+    name: data_pipeline_orderproducts
+    description: "ETL of InstaCart"
+    events:
+      - s3:
+          bucket: ${env:EVENT_BUCKET}
+          event: s3:ObjectCreated:*
+          rules:
+            - prefix: data_csv/order_products/
+  
+  helloapi:
+    handler: helloapi.hello
+    events:
+      - httpApi:
+          path: /
+          method: get
+
+#Glue Jobs:
+Glue:
+  bucketDeploy: ${env:s3_bucket}
+  jobs:
+    - name: job_aisles_to_parquet
+      scriptPath: glue_jobs/aisles_to_parquet.py #modify this
+      type: spark
+      glueVersion: python3-4.0
+      role: ${env:glue_iam}
+      MaxConcurrentRuns: 2
+      WorkerType: Standard
+      NumberOfWorkers: 1
+      Timeout: 5
+      MaxRetries: 1
+      SupportFiles:
+        - local_path: glue_jobs/
+          s3_bucket: ${env:s3_bucket}
+          s3_prefix: ${env:s3_prefix_glue_script}
+          execute_upload: True
+
+    - name: job_departments_to_parquet
+      scriptPath: glue_jobs/departments_to_parquet.py #modify this
+      type: spark
+      glueVersion: python3-4.0
+      role: ${env:glue_iam}
+      MaxConcurrentRuns: 2
+      WorkerType: Standard
+      NumberOfWorkers: 1
+      Timeout: 5
+      MaxRetries: 1
+      SupportFiles:
+        - local_path: glue_jobs/
+          s3_bucket: ${env:s3_bucket}
+          s3_prefix: ${env:s3_prefix_glue_script}
+          execute_upload: True
+    
+    - name: job_products_to_parquet
+      scriptPath: glue_jobs/products_to_parquet.py #modify this
+      type: spark
+      glueVersion: python3-4.0
+      role: ${env:glue_iam}
+      MaxConcurrentRuns: 2
+      WorkerType: Standard
+      NumberOfWorkers: 1
+      Timeout: 5
+      MaxRetries: 1
+      SupportFiles:
+        - local_path: glue_jobs/
+          s3_bucket: ${env:s3_bucket}
+          s3_prefix: ${env:s3_prefix_glue_script}
+          execute_upload: True 
+
+    - name: job_orders_to_parquet
+      scriptPath: glue_jobs/orders_to_parquet.py #modify this
+      type: spark
+      glueVersion: python3-4.0
+      role: ${env:glue_iam}
+      MaxConcurrentRuns: 2
+      WorkerType: Standard
+      NumberOfWorkers: 1
+      Timeout: 5
+      MaxRetries: 1
+      SupportFiles:
+        - local_path: glue_jobs/
+          s3_bucket: ${env:s3_bucket}
+          s3_prefix: ${env:s3_prefix_glue_script}
+          execute_upload: True 
+
+    - name: job_orderproducts_to_parquet
+      scriptPath: glue_jobs/orderproducts_to_parquet.py #modify this
+      type: spark
+      glueVersion: python3-4.0
+      role: ${env:glue_iam}
+      MaxConcurrentRuns: 2
+      WorkerType: Standard
+      NumberOfWorkers: 1
+      Timeout: 5
+      MaxRetries: 1
+      SupportFiles:
+        - local_path: glue_jobs/
+          s3_bucket: ${env:s3_bucket}
+          s3_prefix: ${env:s3_prefix_glue_script}
+          execute_upload: True 
+    
+
+# Add CloudFormation resource templates here
+resources:
+  
+  Description: InstaCart Table Creation, Data Injection, Transformation and Sinking
+  
+  Parameters:
+    ImbaDatabaseNameParquet:
+      Type: String
+      Default: cfn_imba_database_parquet
+
+    ImbaAislesTableName:
+      Type: String
+      Default: aisles
+    ImbaAislesDataLocationParquet:
+      Type: String
+      Default: s3://tgou1055-imba-sls-event/data_parquet/aisles/
+
+    ImbaDepartmentsTableName:
+      Type: String
+      Default: departments
+    ImbaDepartmentsDataLocationParquet:
+      Type: String
+      Default: s3://tgou1055-imba-sls-event/data_parquet/departments/
+    
+    ImbaProductsTableName:
+      Type: String
+      Default: products
+    ImbaProductsDataLocationParquet:
+      Type: String
+      Default: s3://tgou1055-imba-sls-event/data_parquet/products/
+
+    ImbaOrdersTableName:
+      Type: String
+      Default: orders
+    ImbaOrdersDataLocationParquet:
+      Type: String
+      Default: s3://tgou1055-imba-sls-event/data_parquet/orders/
+    
+    ImbaOrderProductsTableName:
+      Type: String
+      Default: order_products
+    ImbaOrderProductsDataLocationParquet:
+      Type: String
+      Default: s3://tgou1055-imba-sls-event/data_parquet/order_products/
+
+    
+
+  Resources:
+
+    # MyS3Bucket:
+    #   Type: AWS::S3::Bucket
+    #   Properties:
+    #     BucketName: tgou1055-imba-sls-event
+
+    # glue database for parquet files
+    ImbaDatabaseParquet:
+      Type: AWS::Glue::Database
+      Properties:
+        CatalogId: !Ref AWS::AccountId
+        DatabaseInput:
+          Name: !Ref ImbaDatabaseNameParquet
+          Description: "Glue database for imba project"
+
+    
+    AislesTableParquet:
+      DependsOn: ImbaDatabaseParquet
+      Type: AWS::Glue::Table
+      Properties:
+        CatalogId: !Ref AWS::AccountId
+        DatabaseName: !Ref ImbaDatabaseParquet
+        TableInput:
+          Name: !Ref ImbaAislesTableName
+          Description: "Glue table for Parquet data"
+          TableType: "EXTERNAL_TABLE"
+          Parameters:
+            classification: "parquet"
+            EXTERNAL: "TRUE"
+          StorageDescriptor:
+            Columns:
+              - Name: aisle_id
+                Type: bigint
+              - Name: aisle
+                Type: string
+            Location: !Ref ImbaAislesDataLocationParquet
+            InputFormat: "org.apache.hadoop.hive.ql.io.parquet.MapredParquetInputFormat"
+            OutputFormat: "org.apache.hadoop.hive.ql.io.parquet.MapredParquetOutputFormat"
+            Compressed: false
+            NumberOfBuckets: -1
+            SerdeInfo:
+              SerializationLibrary: "org.apache.hadoop.hive.ql.io.parquet.serde.ParquetHiveSerDe"
+              Parameters:
+                serialization.format: "1"
+            StoredAsSubDirectories: false
+
+    DepartmentsTableParquet:
+      DependsOn: ImbaDatabaseParquet
+      Type: AWS::Glue::Table
+      Properties:
+        CatalogId: !Ref AWS::AccountId
+        DatabaseName: !Ref ImbaDatabaseParquet
+        TableInput:
+          Name: !Ref ImbaDepartmentsTableName
+          Description: "Glue table for Parquet data"
+          TableType: "EXTERNAL_TABLE"
+          Parameters:
+            classification: "parquet"
+            EXTERNAL: "TRUE"
+          StorageDescriptor:
+            Columns:
+              - Name: department_id
+                Type: bigint
+              - Name: department
+                Type: string
+            Location: !Ref ImbaDepartmentsDataLocationParquet
+            InputFormat: "org.apache.hadoop.hive.ql.io.parquet.MapredParquetInputFormat"
+            OutputFormat: "org.apache.hadoop.hive.ql.io.parquet.MapredParquetOutputFormat"
+            Compressed: false
+            NumberOfBuckets: -1
+            SerdeInfo:
+              SerializationLibrary: "org.apache.hadoop.hive.ql.io.parquet.serde.ParquetHiveSerDe"
+              Parameters:
+                serialization.format: "1"
+            StoredAsSubDirectories: false
+      
+    ProductsTableParquet:
+      DependsOn: ImbaDatabaseParquet
+      Type: AWS::Glue::Table
+      Properties:
+        CatalogId: !Ref AWS::AccountId
+        DatabaseName: !Ref ImbaDatabaseParquet
+        TableInput:
+          Name: !Ref ImbaProductsTableName
+          Description: "Glue table for Parquet data"
+          TableType: "EXTERNAL_TABLE"
+          Parameters:
+            classification: "parquet"
+            EXTERNAL: "TRUE"
+          StorageDescriptor:
+            Columns:
+              - Name: product_id
+                Type: bigint
+              - Name: product_name
+                Type: string
+              - Name: aisle_id
+                Type: bigint
+              - Name: department_id
+                Type: bigint
+            Location: !Ref ImbaProductsDataLocationParquet
+            InputFormat: "org.apache.hadoop.hive.ql.io.parquet.MapredParquetInputFormat"
+            OutputFormat: "org.apache.hadoop.hive.ql.io.parquet.MapredParquetOutputFormat"
+            Compressed: false
+            NumberOfBuckets: -1
+            SerdeInfo:
+              SerializationLibrary: "org.apache.hadoop.hive.ql.io.parquet.serde.ParquetHiveSerDe"
+              Parameters:
+                serialization.format: "1"
+            StoredAsSubDirectories: false
+    
+    OrdersTableParquet:
+      DependsOn: ImbaDatabaseParquet
+      Type: AWS::Glue::Table
+      Properties:
+        CatalogId: !Ref AWS::AccountId
+        DatabaseName: !Ref ImbaDatabaseParquet
+        TableInput:
+          Name: !Ref ImbaOrdersTableName
+          Description: "Glue table for Parquet data"
+          TableType: "EXTERNAL_TABLE"
+          Parameters:
+            classification: "parquet"
+            EXTERNAL: "TRUE"
+          StorageDescriptor:
+            Columns:
+              - Name: order_id
+                Type: bigint
+              - Name: user_id
+                Type: bigint
+              - Name: eval_set
+                Type: string
+              - Name: order_number
+                Type: bigint
+              - Name: order_dow
+                Type: bigint
+              - Name: order_hour_of_day
+                Type: bigint
+              - Name: days_since_prior
+                Type: double
+            Location: !Ref ImbaOrdersDataLocationParquet
+            InputFormat: "org.apache.hadoop.hive.ql.io.parquet.MapredParquetInputFormat"
+            OutputFormat: "org.apache.hadoop.hive.ql.io.parquet.MapredParquetOutputFormat"
+            Compressed: false
+            NumberOfBuckets: -1
+            SerdeInfo:
+              SerializationLibrary: "org.apache.hadoop.hive.ql.io.parquet.serde.ParquetHiveSerDe"
+              Parameters:
+                serialization.format: "1"
+            StoredAsSubDirectories: false
+          
+    OrderProductsTableParquet:
+      DependsOn: ImbaDatabaseParquet
+      Type: AWS::Glue::Table
+      Properties:
+        CatalogId: !Ref AWS::AccountId
+        DatabaseName: !Ref ImbaDatabaseParquet
+        TableInput:
+          Name: !Ref ImbaOrderProductsTableName
+          Description: "Glue table for Parquet data"
+          TableType: "EXTERNAL_TABLE"
+          Parameters:
+            classification: "parquet"
+            EXTERNAL: "TRUE"
+          StorageDescriptor:
+            Columns:
+              - Name: order_id
+                Type: bigint
+              - Name: product_id
+                Type: bigint
+              - Name: add_to_cart_order
+                Type: bigint
+              - Name: reordered
+                Type: bigint
+            Location: !Ref ImbaOrderProductsDataLocationParquet
+            InputFormat: "org.apache.hadoop.hive.ql.io.parquet.MapredParquetInputFormat"
+            OutputFormat: "org.apache.hadoop.hive.ql.io.parquet.MapredParquetOutputFormat"
+            Compressed: false
+            NumberOfBuckets: -1
+            SerdeInfo:
+              SerializationLibrary: "org.apache.hadoop.hive.ql.io.parquet.serde.ParquetHiveSerDe"
+              Parameters:
+                serialization.format: "1"
+            StoredAsSubDirectories: false
