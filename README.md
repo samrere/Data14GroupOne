@@ -1,5 +1,10 @@
 # Data14GroupOne
 machine learning scripts: https://github.com/samrere/Data14Group1-ML
+
+## Project Objective
+The objective of this project is to automate the ETL process on AWS that extracts
+and prepare features for customer buying behaviour prediction, based on shopping orders of InstaCart.
+
 ## Standard
 ### Branching:  
 [prefix]/[ticket-number]-[task-name]  
